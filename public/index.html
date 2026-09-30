@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Тренажерный зал</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <header class="top">
+        <div class="brand">Тренажерный зал<span>панель администратора</span></div>
+        <nav class="nav">
+            <a href="index.html">Главная</a>
+            <a href="clients.html">Клиенты</a>
+            <a href="sale.html">Продать абонемент</a>
+            <a href="sales.html">Продажи</a>
+            <a href="report.html">Отчёты</a>
+        </nav>
+    </header>
+    <main class="wrap">
+        <section class="card search-box">
+            <h2>Проверка абонемента</h2>
+            <p class="muted">Введите фамилию, ФИО или телефон</p>
+            <input id="search" placeholder="Иванов или +7..." autocomplete="off">
+            <div id="result"></div>
+        </section>
+
+        <div class="row" style="margin-bottom:18px">
+            <button class="btn btn-red" onclick="location.href='clients.html#add'">Добавить клиента</button>
+            <button class="btn" onclick="location.href='sale.html'">Продать абонемент</button>
+            <button class="btn btn-ghost" onclick="location.href='clients.html'">Клиенты</button>
+            <button class="btn btn-ghost" onclick="location.href='sales.html'">Продажи</button>
+            <button class="btn btn-ghost" onclick="location.href='report.html'">Отчёты</button>
+        </div>
+
+        <section class="card">
+            <h2>Абонементы, заканчивающиеся сегодня</h2>
+            <div id="expiring"></div>
+        </section>
+    </main>
+    <script src="app.js"></script>
+    <script>
+    let timer
+    document.getElementById('search').addEventListener('input', () => {
+        clearTimeout(timer)
+        timer = setTimeout(findClient, 250)
+    })
+
+    function visitsText(sub) {
+        if (!sub) return '—'
+        if (sub.remaining_visits === null || sub.remaining_visits === undefined) return 'без лимита'
+        return sub.remaining_visits
+    }
+
+    async function findClient() {
+        const q = document.getElementById('search').value.trim()
+        const box = document.getElementById('result')
+        if (!q) { box.innerHTML = ''; return }
+        try {
+            const data = await api('/api/clients?q=' + encodeURIComponent(q))
+            if (!data.length) {
+                box.innerHTML = '<p class="empty">Никого не нашли</p>'
+                return
+            }
+            box.innerHTML = data.map(c => {
+                const sub = c.sub
+                return '<div class="result-card">' +
+                    '<p class="kv"><b>ФИО</b> ' + esc(c.full_name) + '</p>' +
+                    '<p class="kv"><b>Телефон</b> ' + esc(c.phone) + '</p>' +
+                    '<p class="kv"><b>Текущий абонемент</b> ' + esc(sub ? sub.tname : 'нет') + '</p>' +
+                    '<p class="kv"><b>Дата окончания</b> ' + (sub && sub.end_date ? fmtDate(sub.end_date) : 'не ограничена') + '</p>' +
+                    '<p class="kv"><b>Осталось посещений</b> ' + visitsText(sub) + '</p>' +
+                    '<p class="kv"><b>Статус</b> ' + badge(c.status) + '</p>' +
+                    '<div class="actions">' +
+                    '<a class="btn" href="client.html?id=' + c.id + '">Открыть карточку</a>' +
+                    '<button class="btn btn-red" onclick="markVisit(' + c.id + ')">Отметить посещение</button>' +
+                    '</div></div>'
+            }).join('')
+        } catch (e) {
+            box.innerHTML = '<p class="err">' + esc(e.message) + '</p>'
+        }
+    }
+
+    async function markVisit(id) {
+        try {
+            await api('/api/visit', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ cid: id })
+            })
+            alert('Посещение отмечено')
+            findClient()
+        } catch (e) {
+            alert(e.message)
+        }
+    }
+
+    async function loadExpiring() {
+        const box = document.getElementById('expiring')
+        try {
+            const data = await api('/api/expiring')
+            if (!data.length) {
+                box.innerHTML = '<p class="empty">Нет клиентов у которых сегодня заканчивается абонимент.</p>'
+                return
+            }
+            box.innerHTML = '<table><tr><th>ФИО</th><th>Телефон</th><th>Абонемент</th><th>До</th></tr>' +
+                data.map(row => '<tr><td><a href="client.html?id=' + row.id + '">' + esc(row.full_name) +
+                    '</a></td><td>' + esc(row.phone) + '</td><td>' + esc(row.name) +
+                    '</td><td>' + fmtDate(row.end_date) + '</td></tr>').join('') + '</table>'
+        } catch (e) {
+            box.innerHTML = '<p class="err">' + esc(e.message) + '</p>'
+        }
+    }
+    loadExpiring()
+    </script>
+</body>
+</html>

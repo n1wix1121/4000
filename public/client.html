@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Карточка клиента — Тренажерный зал</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <header class="top">
+        <div class="brand">Тренажерный зал<span>карточка клиента</span></div>
+        <nav class="nav">
+            <a href="index.html">Главная</a>
+            <a href="clients.html">Клиенты</a>
+            <a href="sale.html">Продать абонемент</a>
+            <a href="sales.html">Продажи</a>
+            <a href="report.html">Отчёты</a>
+        </nav>
+    </header>
+    <main class="wrap">
+        <section class="card">
+            <h2>Клиент</h2>
+            <div id="info"></div>
+            <div class="actions">
+                <button class="btn" onclick="toggleEdit()">Редактировать</button>
+                <button class="btn btn-red" onclick="goSell()">Продать абонемент</button>
+                <button class="btn btn-ghost" onclick="doVisit()">Отметить посещение</button>
+                <button class="btn" onclick="delClient()">Удалить</button>
+            </div>
+            <div id="visitMsg"></div>
+            <form id="editForm" style="display:none;margin-top:16px">
+                <div class="row">
+                    <div class="field"><label>ФИО</label><input id="name"></div>
+                    <div class="field"><label>Телефон</label><input id="phone"></div>
+                    <div class="field"><label>Дата рождения</label><input id="birth" type="date"></div>
+                </div>
+                <div class="actions">
+                    <button type="button" class="btn btn-red" onclick="saveEdit()">Сохранить</button>
+                </div>
+            </form>
+        </section>
+
+        <section class="card">
+            <h2>История покупок</h2>
+            <table>
+                <tr><th>Тип</th><th>Дата продажи</th><th>Окончание</th><th>Сумма</th></tr>
+                <tbody id="histTable"></tbody>
+            </table>
+        </section>
+
+        <section class="card">
+            <h2>История посещений</h2>
+            <table>
+                <tr><th>Когда</th></tr>
+                <tbody id="visTable"></tbody>
+            </table>
+        </section>
+    </main>
+    <script src="app.js"></script>
+    <script>
+    const cid = new URLSearchParams(location.search).get('id')
+
+    function visitsText(sub) {
+        if (!sub) return '—'
+        if (sub.remaining_visits === null || sub.remaining_visits === undefined) return 'без лимита'
+        return sub.remaining_visits
+    }
+
+    async function load() {
+        const d = await api('/api/info/' + cid)
+        const c = d.client
+        const s = d.sub
+        document.getElementById('name').value = c.full_name || ''
+        document.getElementById('phone').value = c.phone || ''
+        document.getElementById('birth').value = (c.birth_date || '').slice(0, 10)
+
+        document.getElementById('info').innerHTML =
+            '<p class="kv"><b>ID</b> ' + c.id + '</p>' +
+            '<p class="kv"><b>ФИО</b> ' + esc(c.full_name) + '</p>' +
+            '<p class="kv"><b>Телефон</b> ' + esc(c.phone) + '</p>' +
+            '<p class="kv"><b>Дата рождения</b> ' + fmtDate(c.birth_date) + '</p>' +
+            '<p class="kv"><b>Текущий абонемент</b> ' + esc(s ? s.tname : 'нет') + '</p>' +
+            '<p class="kv"><b>Статус абонемента</b> ' + badge(d.status) + '</p>' +
+            '<p class="kv"><b>Дата окончания</b> ' + (s && s.end_date ? fmtDate(s.end_date) : 'не ограничена') + '</p>' +
+            '<p class="kv"><b>Оставшиеся посещения</b> ' + visitsText(s) + '</p>'
+
+        document.getElementById('histTable').innerHTML = d.history.length
+            ? d.history.map(h => '<tr><td>' + esc(h.name) + '</td><td>' + fmtDate(h.sale_date) +
+                '</td><td>' + (h.end_date ? fmtDate(h.end_date) : 'не ограничена') +
+                '</td><td>' + money(h.price) + '</td></tr>').join('')
+            : '<tr><td colspan="4">Покупок пока нет</td></tr>'
+
+        document.getElementById('visTable').innerHTML = d.visits.length
+            ? d.visits.map(v => '<tr><td>' + fmtDt(v.visit_date) + '</td></tr>').join('')
+            : '<tr><td>Посещений пока нет</td></tr>'
+    }
+
+    function toggleEdit() {
+        const form = document.getElementById('editForm')
+        form.style.display = form.style.display === 'none' ? 'block' : 'none'
+    }
+
+    function goSell() {
+        location.href = 'sale.html?cid=' + cid
+    }
+
+    async function saveEdit() {
+        try {
+            await api('/api/clients/' + cid, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    name: document.getElementById('name').value,
+                    phone: document.getElementById('phone').value,
+                    birth: document.getElementById('birth').value
+                })
+            })
+            document.getElementById('editForm').style.display = 'none'
+            document.getElementById('visitMsg').innerHTML = '<p class="msg">Данные сохранены</p>'
+            load()
+        } catch (e) {
+            document.getElementById('visitMsg').innerHTML = '<p class="err">' + esc(e.message) + '</p>'
+        }
+    }
+
+    async function doVisit() {
+        try {
+            await api('/api/visit', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ cid: cid })
+            })
+            document.getElementById('visitMsg').innerHTML = '<p class="msg">Посещение отмечено</p>'
+            load()
+        } catch (e) {
+            document.getElementById('visitMsg').innerHTML = '<p class="err">' + esc(e.message) + '</p>'
+        }
+    }
+
+    async function delClient() {
+        if (!confirm('Удалить клиента?')) return
+        try {
+            await api('/api/clients/' + cid, { method: 'DELETE' })
+            location.href = 'clients.html'
+        } catch (e) {
+            alert(e.message)
+        }
+    }
+
+    load().catch(e => {
+        document.getElementById('info').innerHTML = '<p class="err">' + esc(e.message) + '</p>'
+    })
+    </script>
+</body>
+</html>

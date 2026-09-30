@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Клиенты — Тренажерный зал</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <header class="top">
+        <div class="brand">Тренажерный зал<span>клиенты</span></div>
+        <nav class="nav">
+            <a href="index.html">Главная</a>
+            <a href="clients.html">Клиенты</a>
+            <a href="sale.html">Продать абонемент</a>
+            <a href="sales.html">Продажи</a>
+            <a href="report.html">Отчёты</a>
+        </nav>
+    </header>
+    <main class="wrap">
+        <section class="card" id="add">
+            <h2>Добавить клиента</h2>
+            <div class="row">
+                <div class="field"><label>ФИО</label><input id="name" placeholder="Иванов Иван Иванович"></div>
+                <div class="field"><label>Телефон</label><input id="phone" placeholder="+7 900 000-00-00"></div>
+                <div class="field"><label>Дата рождения</label><input id="birth" type="date"></div>
+            </div>
+            <div class="actions">
+                <button class="btn btn-red" onclick="addClient()">Добавить клиента</button>
+            </div>
+            <div id="addMsg"></div>
+        </section>
+
+        <section class="card">
+            <h2>Найти клиента</h2>
+            <input id="search" placeholder="Фамилия / ФИО / телефон" oninput="loadList()">
+            <div id="list"></div>
+        </section>
+    </main>
+    <script src="app.js"></script>
+    <script>
+    async function addClient() {
+        const name = document.getElementById('name').value
+        const phone = document.getElementById('phone').value
+        const birth = document.getElementById('birth').value
+        const msg = document.getElementById('addMsg')
+        try {
+            await api('/api/clients', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name, phone, birth })
+            })
+            msg.innerHTML = '<p class="msg">Клиент добавлен</p>'
+            document.getElementById('name').value = ''
+            document.getElementById('phone').value = ''
+            document.getElementById('birth').value = ''
+            loadList()
+        } catch (e) {
+            msg.innerHTML = '<p class="err">' + esc(e.message) + '</p>'
+        }
+    }
+
+    async function loadList() {
+        const q = document.getElementById('search').value.trim()
+        const box = document.getElementById('list')
+        try {
+            const data = await api('/api/clients' + (q ? '?q=' + encodeURIComponent(q) : ''))
+            if (!data.length) {
+                box.innerHTML = '<p class="empty">Клиентов нет</p>'
+                return
+            }
+            box.innerHTML = '<table><tr><th>ID</th><th>ФИО</th><th>Телефон</th><th>Абонемент</th><th>Статус</th><th></th></tr>' +
+                data.map(c => '<tr><td>' + c.id + '</td><td>' + esc(c.full_name) + '</td><td>' + esc(c.phone) +
+                    '</td><td>' + esc(c.sub ? c.sub.tname : '—') + '</td><td>' + badge(c.status) +
+                    '</td><td><a href="client.html?id=' + c.id + '">Карточка</a> · ' +
+                    '<a href="#" onclick="delClient(' + c.id + ');return false;">Удалить</a></td></tr>').join('') +
+                '</table>'
+        } catch (e) {
+            box.innerHTML = '<p class="err">' + esc(e.message) + '</p>'
+        }
+    }
+
+    async function delClient(id) {
+        if (!confirm('Удалить клиента и всю его историю?')) return
+        try {
+            await api('/api/clients/' + id, { method: 'DELETE' })
+            loadList()
+        } catch (e) {
+            alert(e.message)
+        }
+    }
+    loadList()
+    </script>
+</body>
+</html>

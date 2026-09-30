@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Отчёты — Тренажерный зал</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <header class="top">
+        <div class="brand">Тренажерный зал<span>отчёты</span></div>
+        <nav class="nav">
+            <a href="index.html">Главная</a>
+            <a href="clients.html">Клиенты</a>
+            <a href="sale.html">Продать абонемент</a>
+            <a href="sales.html">Продажи</a>
+            <a href="report.html">Отчёты</a>
+        </nav>
+    </header>
+    <main class="wrap">
+        <section class="card">
+            <h2>Продажи за день</h2>
+            <div class="row">
+                <div class="field">
+                    <label>Дата</label>
+                    <input id="date" type="date" onchange="load()">
+                </div>
+            </div>
+            <div id="box"></div>
+            <p class="total">Итого: <b id="total">0 ₽</b></p>
+        </section>
+    </main>
+    <script src="app.js"></script>
+    <script>
+    document.getElementById('date').value = todayISO()
+
+    async function load() {
+        const date = document.getElementById('date').value
+        const box = document.getElementById('box')
+        try {
+            const d = await api('/api/report?date=' + encodeURIComponent(date))
+            if (!d.rows.length) {
+                box.innerHTML = '<p class="empty">За эту дату продаж нет</p>'
+            } else {
+                box.innerHTML = '<table><tr><th>Дата</th><th>Клиент</th><th>Тип абонемента</th><th>Сумма</th><th>Дата продажи</th></tr>' +
+                    d.rows.map(row => '<tr><td>' + fmtDate(d.date) + '</td><td>' + esc(row.full_name) +
+                        '</td><td>' + esc(row.name) + '</td><td>' + money(row.price) +
+                        '</td><td>' + fmtDate(row.sale_date) + '</td></tr>').join('') + '</table>'
+            }
+            document.getElementById('total').textContent = money(d.sum)
+        } catch (e) {
+            box.innerHTML = '<p class="err">' + esc(e.message) + '</p>'
+        }
+    }
+    load()
+    </script>
+</body>
+</html>

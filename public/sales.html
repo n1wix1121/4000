@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Продажи — Тренажерный зал</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <header class="top">
+        <div class="brand">Тренажерный зал<span>продажи</span></div>
+        <nav class="nav">
+            <a href="index.html">Главная</a>
+            <a href="clients.html">Клиенты</a>
+            <a href="sale.html">Продать абонемент</a>
+            <a href="sales.html">Продажи</a>
+            <a href="report.html">Отчёты</a>
+        </nav>
+    </header>
+    <main class="wrap">
+        <section class="card">
+            <h2>Все продажи</h2>
+            <div id="box"></div>
+        </section>
+    </main>
+    <script src="app.js"></script>
+    <script>
+    async function load() {
+        const box = document.getElementById('box')
+        try {
+            const data = await api('/api/sales')
+            if (!data.length) {
+                box.innerHTML = '<p class="empty">Продаж пока нет</p>'
+                return
+            }
+            box.innerHTML = '<table><tr><th>Дата</th><th>Клиент</th><th>Телефон</th><th>Тип</th><th>Сумма</th></tr>' +
+                data.map(row => '<tr><td>' + fmtDate(row.sale_date) + '</td><td>' + esc(row.full_name) +
+                    '</td><td>' + esc(row.phone) + '</td><td>' + esc(row.name) +
+                    '</td><td>' + money(row.price) + '</td></tr>').join('') + '</table>'
+        } catch (e) {
+            box.innerHTML = '<p class="err">' + esc(e.message) + '</p>'
+        }
+    }
+    load()
+    </script>
+</body>
+</html>

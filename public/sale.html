@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Продажа абонемента — Море Парк</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <header class="top">
+        <div class="brand">Море Парк<span>продажа абонемента</span></div>
+        <nav class="nav">
+            <a href="index.html">Главная</a>
+            <a href="clients.html">Клиенты</a>
+            <a href="sale.html">Продать абонемент</a>
+            <a href="sales.html">Продажи</a>
+            <a href="report.html">Отчёты</a>
+        </nav>
+    </header>
+    <main class="wrap">
+        <section class="card">
+            <h2>Продать абонемент</h2>
+            <div class="field">
+                <label>Клиент (поиск / выбор)</label>
+                <input id="q" placeholder="Начните вводить ФИО или телефон" oninput="filterClients()">
+                <select id="clientSel" size="6" style="margin-top:8px;height:160px"></select>
+            </div>
+            <div class="field" style="margin-top:12px">
+                <label>Тип абонемента</label>
+                <select id="typeSel" onchange="refreshCalc()"></select>
+            </div>
+            <div class="row" style="margin-top:12px">
+                <div class="field"><label>Стоимость</label><input id="price" type="number" min="0" step="1"></div>
+                <div class="field"><label>Дата продажи</label><input id="saleDate" disabled></div>
+                <div class="field"><label>Дата окончания</label><input id="endDate" disabled></div>
+                <div class="field"><label>Количество занятий</label><input id="visits" disabled></div>
+            </div>
+            <p class="hint" id="hint"></p>
+            <div class="actions">
+                <button class="btn btn-red" onclick="sell()">Продать абонемент</button>
+            </div>
+            <div id="msg"></div>
+        </section>
+    </main>
+    <script src="app.js"></script>
+    <script>
+    let types = []
+    let clients = []
+    const preselect = new URLSearchParams(location.search).get('cid')
+    document.getElementById('saleDate').value = todayISO()
+
+    async function load() {
+        clients = await api('/api/clients')
+        types = await api('/api/types')
+        document.getElementById('typeSel').innerHTML = types.map(t =>
+            '<option value="' + t.id + '">' + esc(t.name) + '</option>').join('')
+        renderClients(clients)
+        if (preselect) document.getElementById('clientSel').value = preselect
+        refreshCalc()
+    }
+
+    function renderClients(list) {
+        const sel = document.getElementById('clientSel')
+        const current = sel.value
+        sel.innerHTML = list.map(c =>
+            '<option value="' + c.id + '">' + esc(c.full_name) + ' · ' + esc(c.phone) + '</option>').join('')
+        if (current) sel.value = current
+    }
+
+    function filterClients() {
+        const q = document.getElementById('q').value.trim().toLowerCase()
+        const list = !q ? clients : clients.filter(c =>
+            (c.full_name || '').toLowerCase().includes(q) || (c.phone || '').includes(q))
+        renderClients(list)
+    }
+
+    function currentType() {
+        const id = document.getElementById('typeSel').value
+        return types.find(x => String(x.id) === String(id))
+    }
+
+    function refreshCalc() {
+        const t = currentType()
+        const sale = todayISO()
+        const p = previewSale(t, sale)
+        if (t) document.getElementById('price').value = t.price
+        document.getElementById('endDate').value = p.end || ''
+        document.getElementById('visits').value = p.visits == null ? 'без лимита' : p.visits
+        const names = {
+            'Разовое': 'Действует только сегодня.',
+            '4 занятия': 'Срок не ограничен датой. Сначала 4 посещения.',
+            '8 занятий': 'Срок не ограничен датой. Сначала 8 посещений.',
+            'Месячный': 'Окончание: сегодня + 30 дней.',
+            'Годовой': 'Окончание: сегодня + 365 дней.'
+        }
+        document.getElementById('hint').textContent = t ? (names[t.name] || '') : ''
+    }
+
+    async function sell() {
+        const msg = document.getElementById('msg')
+        const cid = document.getElementById('clientSel').value
+        const tid = document.getElementById('typeSel').value
+        const price = document.getElementById('price').value
+        try {
+            await api('/api/sell', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ cid: parseInt(cid, 10), tid: parseInt(tid, 10), price: Number(price) })
+            })
+            msg.innerHTML = '<p class="msg">Абонемент продан и сохранён</p>'
+        } catch (e) {
+            msg.innerHTML = '<p class="err">' + esc(e.message) + '</p>'
+        }
+    }
+
+    load().catch(e => {
+        document.getElementById('msg').innerHTML = '<p class="err">' + esc(e.message) + '</p>'
+    })
+    </script>
+</body>
+</html>
